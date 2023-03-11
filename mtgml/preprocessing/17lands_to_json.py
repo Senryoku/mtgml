@@ -68,7 +68,7 @@ def get_draft(rows, name_to_int):
         return {
             "picks": [
                 get_pick(row, name_to_int, num_picks)
-                for _, row in rows.sort_values(["pack_number", "pick_number"]).iterrows()
+                for row in rows
             ]
         }
     except ValueError:
@@ -78,35 +78,62 @@ def get_draft(rows, name_to_int):
 
 def read_file(name_to_int, filename):
     prefix = "pack_card_"
-    data = pd.read_csv(filename, engine="pyarrow")
-    pack_cols = [col for col in data.columns if col.startswith(prefix)]
-    old_cols = ["draft_id", "pack_number", "pick_number", "pick", *pack_cols]
-    new_cols = [
-        "draft_id",
-        "pack_number",
-        "pick_number",
-        "pick",
-        *[name_to_int[col.removeprefix(prefix).lower()] for col in pack_cols],
-    ]
-    data = data[old_cols]
-    data.columns = new_cols
-    return (
-        get_draft(data.iloc[idxs], name_to_int)
-        for _, idxs in tqdm(
-            data.groupby("draft_id", sort=True).groups.items(),
-            dynamic_ncols=True,
-            unit="draft",
-            unit_scale=1,
-            smoothing=0.01,
-        )
-        if len(idxs) == 42 or len(idxs) == 45 or len(idxs) == 39
-    )
+    data = pd.read_csv(filename, chunksize=1000)
+    print("pd.read_csv done")
+    #pack_cols = [col for col in data.columns if col.startswith(prefix)]
+    #old_cols = ["draft_id", "pack_number", "pick_number", "pick", *pack_cols]
+    #new_cols = [
+    #    "draft_id",
+    #    "pack_number",
+    #    "pick_number",
+    #    "pick",
+    #    *[name_to_int[col.removeprefix(prefix).lower()] for col in pack_cols],
+    #]
+    #data = data[old_cols]
+    #data.columns = new_cols
+
+    current_draft_id = ""
+    current_rows = []
+    for chunk in data:
+        pack_cols = [col for col in chunk.columns if col.startswith(prefix)]
+        old_cols = ["draft_id", "pack_number", "pick_number", "pick", *pack_cols]
+        new_cols = [
+            "draft_id",
+            "pack_number",
+            "pick_number",
+            "pick",
+            *[name_to_int[col.removeprefix(prefix).lower()] for col in pack_cols],
+        ]
+        chunk = chunk[old_cols]
+        chunk.columns = new_cols
+        for index, row in chunk.iterrows():
+            if row["draft_id"] != current_draft_id:
+                if len(current_rows) == 42 or len(current_rows) == 45 or len(current_rows) == 39:
+                    ret = get_draft(current_rows, name_to_int)
+                    #print(ret)
+                    yield ret
+                current_rows = []
+                current_draft_id = row["draft_id"]
+            current_rows.append(row)
+    
+    #return (
+    #    get_draft(data.iloc[idxs], name_to_int)
+    #    for _, idxs in tqdm(
+    #        data.groupby("draft_id", sort=True).groups.items(),
+    #        dynamic_ncols=True,
+    #        unit="draft",
+    #        unit_scale=1,
+    #        smoothing=0.01,
+    #    )
+    #    if len(idxs) == 42 or len(idxs) == 45 or len(idxs) == 39
+    #)
 
 
 if __name__ == "__main__":
     with open("data/maps/int_to_card.json") as fp:
         int_to_card = json.load(fp)
+    print("int_to_card loaded")
     name_to_int = {c["name"].lower(): i for i, c in enumerate(int_to_card)}
-    drafts = read_file(name_to_int, sys.argv[1])
+    print("name_to_int done")
     with open(f"{sys.argv[1]}.json", "w") as fp:
-        json.dump(drafts, fp=fp, cls=IterEncoder)
+        json.dump(read_file(name_to_int, sys.argv[1]), fp=fp, cls=IterEncoder)
