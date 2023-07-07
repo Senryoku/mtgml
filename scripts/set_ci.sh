@@ -30,7 +30,7 @@ require_clean_work_tree () {
     fi
 }
 
-require_clean_work_tree
+#require_clean_work_tree
 
 mkdir -p data/maps
 cd data
@@ -74,14 +74,14 @@ done
 
 cd ../../../
 
-for DRAFT_TYPE in ${DRAFT_TYPES[@]}
-do
-    if [[ -f data/17lands/$1/${DRAFT_TYPE}Draft.csv ]]
-    then
-        python -m mtgml.preprocessing.17lands_to_json data/17lands/$1/${DRAFT_TYPE}Draft.csv
-        rm data/17lands/$1/${DRAFT_TYPE}Draft.csv
-    fi
-done
+#for DRAFT_TYPE in ${DRAFT_TYPES[@]}
+#do
+#    if [[ -f data/17lands/$1/${DRAFT_TYPE}Draft.csv ]]
+#    then
+#        python -m mtgml.preprocessing.17lands_to_json data/17lands/$1/${DRAFT_TYPE}Draft.csv
+#        rm data/17lands/$1/${DRAFT_TYPE}Draft.csv
+#    fi
+#done
 python -m mtgml.preprocessing.find_used data/17lands/$1 nonexistant nonexistant
 python -m mtgml.preprocessing.load_picks data/17lands/$1
 
@@ -101,5 +101,5 @@ mkdir -p ml_files/latest
 cp -r data/maps/int_to_card.json ml_files/latest
 cp data/maps/original_to_new_index.json ml_files/latest
 cp ml_files/train_$TYPE/* ml_files/latest
-python -m mtgml.postprocessing.patch_model
+python -m mtgml.postprocessing.patch_draftbots
 docker buildx build --platform linux/arm64/v8,linux/amd64 --tag $REPOSITORY/mtgml:$TYPE-$DATE --tag $REPOSITORY/mtgml:$TYPE-latest . -f .docker/Dockerfile.eval --push
